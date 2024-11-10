@@ -135,66 +135,73 @@ def Q(y_val):
 # 전단력 함수 수치화
 V_func = sp.lambdify(x, V, 'numpy')
 
-# 특정 위치에서의 응력 성분을 계산
-x_val = float(input("\n응력을 계산할 x 위치를 입력하세요 (m): "))
-y_val = float(input("응력을 계산할 y 위치를 입력하세요 (m, 단면 중앙이 y=0): "))
-z_val = float(input("응력을 계산할 z 위치를 입력하세요 (m): "))
+while True:  # 반복 루프 시작
+    # 특정 위치에서의 응력 성분을 계산
+    x_val = float(input("\n응력을 계산할 x 위치를 입력하세요 (m): "))
+    y_val = float(input("응력을 계산할 y 위치를 입력하세요 (m, 단면 중앙이 y=0): "))
+    z_val = float(input("응력을 계산할 z 위치를 입력하세요 (m): "))
 
-# 불연속점에서의 매우 작은 값 epsilon 설정
-epsilon = 1e-6
+    # 불연속점에서의 매우 작은 값 epsilon 설정
+    epsilon = 1e-6
 
-# 좌측과 우측의 x 값 계산
-x_left = x_val - epsilon
-x_right = x_val + epsilon
+    # 좌측과 우측의 x 값 계산
+    x_left = x_val - epsilon
+    x_right = x_val + epsilon
 
-# 해당 위치에서의 전단력 계산 (단위: N)
-V_at_x_left = V_func(x_left)
-V_at_x_right = V_func(x_right)
+    # 해당 위치에서의 전단력 계산 (단위: N)
+    V_at_x_left = V_func(x_left)
+    V_at_x_right = V_func(x_right)
 
-# Q(y) 계산 (단위: m^3)
-Q_at_y = Q(y_val)
+    # Q(y) 계산 (단위: m^3)
+    Q_at_y = Q(y_val)
 
-# 전단 응력 σ_xy 계산 (단위: N/m^2)
-sigma_xy_left = V_at_x_left * Q_at_y / (I * b)
-sigma_xy_right = V_at_x_right * Q_at_y / (I * b)
+    # 전단 응력 σ_xy 계산 (단위: N/m^2)
+    sigma_xy_left = V_at_x_left * Q_at_y / (I * b)
+    sigma_xy_right = V_at_x_right * Q_at_y / (I * b)
 
-# 수직 응력 σ_xx 계산 (단위: N/m^2)
-sigma_xx_left = sigma.subs({x: x_left, y: y_val})
-sigma_xx_left = float(sigma_xx_left)
+    # 수직 응력 σ_xx 계산 (단위: N/m^2)
+    sigma_xx_left = sigma.subs({x: x_left, y: y_val})
+    sigma_xx_left = float(sigma_xx_left)
 
-sigma_xx_right = sigma.subs({x: x_right, y: y_val})
-sigma_xx_right = float(sigma_xx_right)
+    sigma_xx_right = sigma.subs({x: x_right, y: y_val})
+    sigma_xx_right = float(sigma_xx_right)
 
-# 응력 텐서 구성
-sigma_xz = 0  # z 방향 전단 응력은 무시 (단위: N/m^2)
-sigma_yy = 0  # 단위: N/m^2
-sigma_zz = 0  # 단위: N/m^2
+    # 응력 텐서 구성
+    sigma_xz = 0  # z 방향 전단 응력은 무시 (단위: N/m^2)
+    sigma_yy = 0  # 단위: N/m^2
+    sigma_zz = 0  # 단위: N/m^2
 
-# 좌측 응력 텐서 구성 (단위: N/m^2)
-stress_tensor_left = sp.Matrix([
-    [sigma_xx_left, sigma_xy_left, sigma_xz],
-    [sigma_xy_left, sigma_yy, 0],
-    [sigma_xz, 0, sigma_zz]
-])
+    # 좌측 응력 텐서 구성 (단위: N/m^2)
+    stress_tensor_left = sp.Matrix([
+        [sigma_xx_left, sigma_xy_left, sigma_xz],
+        [sigma_xy_left, sigma_yy, 0],
+        [sigma_xz, 0, sigma_zz]
+    ])
 
-# 우측 응력 텐서 구성 (단위: N/m^2)
-stress_tensor_right = sp.Matrix([
-    [sigma_xx_right, sigma_xy_right, sigma_xz],
-    [sigma_xy_right, sigma_yy, 0],
-    [sigma_xz, 0, sigma_zz]
-])
+    # 우측 응력 텐서 구성 (단위: N/m^2)
+    stress_tensor_right = sp.Matrix([
+        [sigma_xx_right, sigma_xy_right, sigma_xz],
+        [sigma_xy_right, sigma_yy, 0],
+        [sigma_xz, 0, sigma_zz]
+    ])
 
-# 응력 텐서의 크기 계산 (절댓값의 합)
-norm_left = abs(sigma_xx_left) + abs(sigma_xy_left)
-norm_right = abs(sigma_xx_right) + abs(sigma_xy_right)
+    # 응력 텐서의 크기 계산 (절댓값의 합)
+    norm_left = abs(sigma_xx_left) + abs(sigma_xy_left)
+    norm_right = abs(sigma_xx_right) + abs(sigma_xy_right)
 
-# 큰 응력 텐서 선택
-if norm_left >= norm_right:
-    stress_tensor = stress_tensor_left
-    print(f"\n{x_val}, {y_val}, {z_val} 위치에서의 응력 텐서 (좌측 값 사용, 단위: N/m^2):")
-else:
-    stress_tensor = stress_tensor_right
-    print(f"\n{x_val}, {y_val}, {z_val} 위치에서의 응력 텐서 (우측 값 사용, 단위: N/m^2):")
+    # 큰 응력 텐서 선택
+    if norm_left >= norm_right:
+        stress_tensor = stress_tensor_left
+        print(f"\n{x_val}, {y_val}, {z_val} 위치에서의 응력 텐서 (좌측 값 사용, 단위: N/m^2):")
+    else:
+        stress_tensor = stress_tensor_right
+        print(f"\n{x_val}, {y_val}, {z_val} 위치에서의 응력 텐서 (우측 값 사용, 단위: N/m^2):")
 
-# 응력 텐서 출력
-sp.pprint(stress_tensor)
+    # 응력 텐서 출력
+    sp.pprint(stress_tensor)
+
+    # 다시 계산 여부 확인
+    repeat = input("\n다른 위치에서 계산을 진행하시겠습니까? (y/n): ").strip().lower()
+    if repeat != 'y':
+        print("계산을 종료합니다.")
+        break
