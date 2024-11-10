@@ -132,10 +132,12 @@ print("Right support reaction R_B (unit: N):", R_B_sol)
 def Q(y_val):
     return b * (h**2 / 4 - y_val**2)
 
-# Convert shear force function for numerical computation
+# Convert shear force and moment functions for numerical computation
 V_func = sp.lambdify(x, V, 'numpy')
+M_func = sp.lambdify(x, M, 'numpy')
 
-while True:  # Begin calculation loop
+# Start stress calculation loop
+while True:
     # Calculate stress components at a specific location
     x_val = float(input("\nEnter the x-position to calculate stress (m): "))
     y_val = float(input("Enter the y-position to calculate stress (m, y=0 at section center): "))
@@ -200,7 +202,32 @@ while True:  # Begin calculation loop
     # Print stress tensor
     sp.pprint(stress_tensor)
 
-    # Check if user wants to calculate another position
+    # Update graphs with new input each time coordinates are entered
+    x_vals = np.linspace(0, L, 500)
+    V_vals = V_func(x_vals)
+    M_vals = M_func(x_vals)
+
+    # Shear force diagram
+    plt.figure(figsize=(10, 4))
+    plt.plot(x_vals, V_vals, label='Shear Force V(x)')
+    plt.title('Shear Force Diagram (SFD)')
+    plt.xlabel('x (m)')
+    plt.ylabel('Shear Force V(x) (N)')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    # Moment diagram
+    plt.figure(figsize=(10, 4))
+    plt.plot(x_vals, M_vals, label='Moment M(x)')
+    plt.title('Bending Moment Diagram (BMD)')
+    plt.xlabel('x (m)')
+    plt.ylabel('Moment M(x) (Nm)')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    # Check if user wants to calculate at another location
     repeat = input("\nWould you like to calculate stress at another location? (y/n): ").strip().lower()
     if repeat != 'y':
         print("Ending calculations.")
