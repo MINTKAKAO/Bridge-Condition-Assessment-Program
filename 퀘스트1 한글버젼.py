@@ -134,7 +134,9 @@ def Q(y_val):
 
 # 전단력 함수 수치화
 V_func = sp.lambdify(x, V, 'numpy')
+M_func = sp.lambdify(x, M, 'numpy')
 
+# 응력 계산 루프 시작
 while True:  # 반복 루프 시작
     # 특정 위치에서의 응력 성분을 계산
     x_val = float(input("\n응력을 계산할 x 위치를 입력하세요 (m): "))
@@ -199,6 +201,31 @@ while True:  # 반복 루프 시작
 
     # 응력 텐서 출력
     sp.pprint(stress_tensor)
+
+    # 수치 계산 및 그래프 그리기 (응력 위치 입력 시마다 그래프 갱신)
+    x_vals = np.linspace(0, L, 500)
+    V_vals = V_func(x_vals)
+    M_vals = M_func(x_vals)
+
+    # 전단력 선도
+    plt.figure(figsize=(10, 4))
+    plt.plot(x_vals, V_vals, label='Shear Force V(x)')
+    plt.title('SFD')
+    plt.xlabel('x (m)')
+    plt.ylabel('Shear Force V(x) (N)')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    # 모멘트 선도
+    plt.figure(figsize=(10, 4))
+    plt.plot(x_vals, M_vals, label='Moment M(x)')
+    plt.title('BMD')
+    plt.xlabel('x (m)')
+    plt.ylabel('Moment M(x) (Nm)')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
 
     # 다시 계산 여부 확인
     repeat = input("\n다른 위치에서 계산을 진행하시겠습니까? (y/n): ").strip().lower()
