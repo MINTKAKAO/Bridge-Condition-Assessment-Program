@@ -2,7 +2,7 @@ import sympy as sp
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Variable definition
+# Variable definitions
 x, y = sp.symbols('x y')
 L = float(input("Enter the length of the beam L (m): "))  # Unit: meters (m)
 b = float(input("Enter the width of the beam section b (m): "))  # Unit: meters (m)
@@ -73,15 +73,14 @@ for start_pos, end_pos, mag in continuous_loads:
 
 # Shear force due to linear distributed loads
 for start_pos, end_pos, start_mag, end_mag in linear_loads:
-    # Slope of linear load
-    slope = (end_mag - start_mag) / (end_pos - start_pos)  # Unit: N/m^2
+    slope = (end_mag - start_mag) / (end_pos - start_pos)  # Slope (N/m^2)
     a = start_pos
     b_pos = end_pos
     w0 = start_mag
     V += sp.Piecewise(
         (0, x < a),
-        (-(w0 * (x - a) + 0.5 * slope * (x - a)**2), (x >= a) & (x <= b_pos)),
-        (-(w0 * (b_pos - a) + 0.5 * slope * (b_pos - a)**2), x > b_pos)
+        (- (w0 * (x - a) + 0.5 * slope * (x - a)**2), (x >= a) & (x <= b_pos)),
+        (- (w0 * (b_pos - a) + 0.5 * slope * (b_pos - a)**2), x > b_pos)
     )
 
 # Moment due to point moments
@@ -136,66 +135,73 @@ def Q(y_val):
 # Convert shear force function for numerical computation
 V_func = sp.lambdify(x, V, 'numpy')
 
-# Calculate stress components at a specific location
-x_val = float(input("\nEnter the x-position to calculate stress (m): "))
-y_val = float(input("Enter the y-position to calculate stress (m, y=0 at section center): "))
-z_val = float(input("Enter the z-position to calculate stress (m): "))
+while True:  # Begin calculation loop
+    # Calculate stress components at a specific location
+    x_val = float(input("\nEnter the x-position to calculate stress (m): "))
+    y_val = float(input("Enter the y-position to calculate stress (m, y=0 at section center): "))
+    z_val = float(input("Enter the z-position to calculate stress (m): "))
 
-# Small epsilon value for discontinuity handling
-epsilon = 1e-6
+    # Small epsilon value for handling discontinuities
+    epsilon = 1e-6
 
-# Calculate left and right x values around the specified position
-x_left = x_val - epsilon
-x_right = x_val + epsilon
+    # Calculate left and right x values around the specified position
+    x_left = x_val - epsilon
+    x_right = x_val + epsilon
 
-# Calculate shear force at specified positions (unit: N)
-V_at_x_left = V_func(x_left)
-V_at_x_right = V_func(x_right)
+    # Calculate shear force at specified positions (unit: N)
+    V_at_x_left = V_func(x_left)
+    V_at_x_right = V_func(x_right)
 
-# Calculate Q(y) (unit: m^3)
-Q_at_y = Q(y_val)
+    # Calculate Q(y) (unit: m^3)
+    Q_at_y = Q(y_val)
 
-# Calculate shear stress σ_xy (unit: N/m^2)
-sigma_xy_left = V_at_x_left * Q_at_y / (I * b)
-sigma_xy_right = V_at_x_right * Q_at_y / (I * b)
+    # Calculate shear stress σ_xy (unit: N/m^2)
+    sigma_xy_left = V_at_x_left * Q_at_y / (I * b)
+    sigma_xy_right = V_at_x_right * Q_at_y / (I * b)
 
-# Calculate normal stress σ_xx (unit: N/m^2)
-sigma_xx_left = sigma.subs({x: x_left, y: y_val})
-sigma_xx_left = float(sigma_xx_left)
+    # Calculate normal stress σ_xx (unit: N/m^2)
+    sigma_xx_left = sigma.subs({x: x_left, y: y_val})
+    sigma_xx_left = float(sigma_xx_left)
 
-sigma_xx_right = sigma.subs({x: x_right, y: y_val})
-sigma_xx_right = float(sigma_xx_right)
+    sigma_xx_right = sigma.subs({x: x_right, y: y_val})
+    sigma_xx_right = float(sigma_xx_right)
 
-# Stress tensor components
-sigma_xz = 0  # Shear stress in z-direction (assumed zero, unit: N/m^2)
-sigma_yy = 0  # Normal stress in y-direction (unit: N/m^2)
-sigma_zz = 0  # Normal stress in z-direction (unit: N/m^2)
+    # Construct stress tensor
+    sigma_xz = 0  # Shear stress in z-direction (unit: N/m^2)
+    sigma_yy = 0  # Normal stress in y-direction (unit: N/m^2)
+    sigma_zz = 0  # Normal stress in z-direction (unit: N/m^2)
 
-# Left stress tensor (unit: N/m^2)
-stress_tensor_left = sp.Matrix([
-    [sigma_xx_left, sigma_xy_left, sigma_xz],
-    [sigma_xy_left, sigma_yy, 0],
-    [sigma_xz, 0, sigma_zz]
-])
+    # Left stress tensor (unit: N/m^2)
+    stress_tensor_left = sp.Matrix([
+        [sigma_xx_left, sigma_xy_left, sigma_xz],
+        [sigma_xy_left, sigma_yy, 0],
+        [sigma_xz, 0, sigma_zz]
+    ])
 
-# Right stress tensor (unit: N/m^2)
-stress_tensor_right = sp.Matrix([
-    [sigma_xx_right, sigma_xy_right, sigma_xz],
-    [sigma_xy_right, sigma_yy, 0],
-    [sigma_xz, 0, sigma_zz]
-])
+    # Right stress tensor (unit: N/m^2)
+    stress_tensor_right = sp.Matrix([
+        [sigma_xx_right, sigma_xy_right, sigma_xz],
+        [sigma_xy_right, sigma_yy, 0],
+        [sigma_xz, 0, sigma_zz]
+    ])
 
-# Calculate norm (absolute sum of stress components)
-norm_left = abs(sigma_xx_left) + abs(sigma_xy_left)
-norm_right = abs(sigma_xx_right) + abs(sigma_xy_right)
+    # Calculate norm (absolute sum of stress components)
+    norm_left = abs(sigma_xx_left) + abs(sigma_xy_left)
+    norm_right = abs(sigma_xx_right) + abs(sigma_xy_right)
 
-# Choose larger stress tensor
-if norm_left >= norm_right:
-    stress_tensor = stress_tensor_left
-    print(f"\nStress tensor at ({x_val}, {y_val}, {z_val}) (left value used, unit: N/m^2):")
-else:
-    stress_tensor = stress_tensor_right
-    print(f"\nStress tensor at ({x_val}, {y_val}, {z_val}) (right value used, unit: N/m^2):")
+    # Choose larger stress tensor
+    if norm_left >= norm_right:
+        stress_tensor = stress_tensor_left
+        print(f"\nStress tensor at ({x_val}, {y_val}, {z_val}) (left value used, unit: N/m^2):")
+    else:
+        stress_tensor = stress_tensor_right
+        print(f"\nStress tensor at ({x_val}, {y_val}, {z_val}) (right value used, unit: N/m^2):")
 
-# Print stress tensor
-sp.pprint(stress_tensor)
+    # Print stress tensor
+    sp.pprint(stress_tensor)
+
+    # Check if user wants to calculate another position
+    repeat = input("\nWould you like to calculate stress at another location? (y/n): ").strip().lower()
+    if repeat != 'y':
+        print("Ending calculations.")
+        break
