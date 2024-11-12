@@ -2,11 +2,13 @@ import sympy as sp
 import numpy as np
 import matplotlib.pyplot as plt
 
+# plt.ion()  # 대화형 모드 비활성화
+
 # 변수 정의
 x, y = sp.symbols('x y')
 L = float(input("보의 길이 L을 입력하세요 (m): "))  # 단위: 미터 (m)
-b = float(input("보의 단면 폭 b를 입력하세요 (m): "))  # 단위: 미터 (m)
-h = float(input("보의 단면 높이 h를 입력하세요 (m): "))  # 단위: 미터 (m)
+b = float(input("보의 단면 폭 b을 입력하세요 (m): "))  # 단위: 미터 (m)
+h = float(input("보의 단면 높이 h을 입력하세요 (m): "))  # 단위: 미터 (m)
 I = b * h**3 / 12  # 단면 2차 모멘트 (단위: m^4)
 
 # 지점 반력 변수 정의
@@ -73,7 +75,7 @@ for start_pos, end_pos, mag in continuous_loads:
 
 # 선형 연속하중에 따른 전단력 계산
 for start_pos, end_pos, start_mag, end_mag in linear_loads:
-    slope = (end_mag - start_mag) / (end_pos - start_pos)  # 기울기 (N/m^2)
+    slope = (end_mag - start_mag) / (end_pos - start_pos)  # 기울기 (N/m²)
     a = start_pos
     b_pos = end_pos
     w0 = start_mag
@@ -88,7 +90,8 @@ for pos, mag in zip(moment_positions, moment_magnitudes):
     M += sp.Piecewise((-mag, x >= pos), (0, x < pos))
 
 # 전단력을 적분하여 모멘트 계산
-M += sp.integrate(V, x) + sp.Symbol('C1')  # 적분 상수 C1 추가 (단위: Nm)
+C1 = sp.symbols('C1')
+M += sp.integrate(V, x) + C1  # 적분 상수 C1 추가 (단위: Nm)
 
 # 경계 조건을 이용하여 적분 상수 및 반력 계산
 boundary_conditions = [M.subs(x, 0) - 0]
@@ -106,129 +109,167 @@ force_eq = sp.Eq(R_A + R_B, total_load)
 moment_eq = sp.Eq(M.subs(x, L), 0)
 
 # 방정식 풀기
-solutions = sp.solve([force_eq] + boundary_conditions + [moment_eq], (R_A, R_B, sp.Symbol('C1')))
+solutions = sp.solve([force_eq] + boundary_conditions + [moment_eq], (R_A, R_B, C1))
 R_A_sol = solutions[R_A]  # 단위: N
 R_B_sol = solutions[R_B]  # 단위: N
-C1_sol = solutions[sp.Symbol('C1')]  # 단위: Nm
+C1_sol = solutions[C1]    # 단위: Nm
 
 # R_A, R_B, C1 값을 V와 M에 대입
 V = V.subs(R_A, R_A_sol)  # 단위: N
-M = M.subs(R_A, R_A_sol).subs('C1', C1_sol)  # 단위: Nm
+M = M.subs(R_A, R_A_sol).subs(C1, C1_sol)  # 단위: Nm
 
 # 응력 분포 함수 (단위: Pa, N/m^2)
 sigma = -M * y / I
 
-# 결과 출력
-print("\n전단력 함수 V(x) (단위: N):")
-sp.pprint(V)
-print("\n모멘트 함수 M(x) (단위: Nm):")
-sp.pprint(M)
-print("\n총 응력 분포 함수 σ(x, y) (단위: N/m^2):")
-sp.pprint(sigma)
+# 결과 출력 (응력 함수 출력 제거)
 print("\n왼쪽 지점 반력 R_A (단위: N):", R_A_sol)
 print("오른쪽 지점 반력 R_B (단위: N):", R_B_sol)
 
 # 중립축에서 y 위치까지의 1차 모멘트 Q(y) 계산 함수 (단위: m^3)
-def Q(y_val):
-    return b * (h**2 / 4 - y_val**2)
+def Q(y_val, b, h):
+    return (b / 2) * ((h**2 / 4) - y_val**2)
 
-# 전단력 함수 수치화
-V_func = sp.lambdify(x, V, 'numpy')
-M_func = sp.lambdify(x, M, 'numpy')
+# 전단력과 모멘트를 수치적으로 평가
+x_vals = np.linspace(0, L, 500)
+V_vals = np.array([V.subs(x, val).evalf() for val in x_vals], dtype=float)
+M_vals = np.array([M.subs(x, val).evalf() for val in x_vals], dtype=float)
+
+# 그래프 그리기
+plt.figure(figsize=(10, 4))
+plt.plot(x_vals, V_vals, label='Shear Force V(x)')
+plt.title('Shear Force Diagram (SFD)')
+plt.xlabel('x (m)')
+plt.ylabel('Shear Force V(x) (N)')
+plt.grid(True)
+plt.legend()
+plt.show()  # 블로킹 모드로 표시
+
+plt.figure(figsize=(10, 4))
+plt.plot(x_vals, M_vals, label='Moment M(x)', color='orange')
+plt.title('Bending Moment Diagram (BMD)')
+plt.xlabel('x (m)')
+plt.ylabel('Moment M(x) (Nm)')
+plt.grid(True)
+plt.legend()
+plt.show()  # 블로킹 모드으로 표시
+
+# 불연속점 목록 생성
+discontinuities = sorted(
+    set(
+        moment_positions +
+        point_positions +
+        [pos for load in continuous_loads for pos in (load[0], load[1])] +
+        [pos for load in linear_loads for pos in (load[0], load[1])]
+    )
+)
+
+# 불연속점인지 확인하는 함수
+def is_discontinuity(x_val, discontinuities, epsilon=1e-6):
+    return any(abs(x_val - pos) < epsilon for pos in discontinuities)
 
 # 응력 계산 루프 시작
 while True:  # 반복 루프 시작
-    # 특정 위치에서의 응력 성분을 계산
-    x_val = float(input("\n응력을 계산할 x 위치를 입력하세요 (m): "))
-    y_val = float(input("응력을 계산할 y 위치를 입력하세요 (m, 단면 중앙이 y=0): "))
-    z_val = float(input("응력을 계산할 z 위치를 입력하세요 (m): "))
+    try:
+        # 특정 위치에서의 응력 성분을 계산
+        x_val = float(input(f"\n응력을 계산할 x 위치를 입력하세요 (0 <= x <= {L} m): "))
+        if not (0 <= x_val <= L):
+            print(f"x 위치는 0과 {L} 사이여야 합니다.")
+            continue
+        y_val = float(input(f"응력을 계산할 y 위치를 입력하세요 (m, 단면 중앙이 y=0, -{h/2} <= y <= {h/2} m): "))
+        if not (-h/2 <= y_val <= h/2):
+            print(f"y 위치는 -{h/2}과 {h/2} 사이여야 합니다.")
+            continue
+        z_val = float(input("응력을 계산할 z 위치를 입력하세요 (m): "))
 
-    # 불연속점에서의 매우 작은 값 epsilon 설정
-    epsilon = 1e-6
+        # Q(y) 계산 (단위: m^3)
+        Q_at_y = Q(y_val, b, h)
 
-    # 좌측과 우측의 x 값 계산
-    x_left = x_val - epsilon
-    x_right = x_val + epsilon
+        if is_discontinuity(x_val, discontinuities):
+            # 불연속점인 경우 좌극한과 우극한 계산
+            epsilon = 1e-6
+            x_left = x_val - epsilon
+            x_right = x_val + epsilon
 
-    # 해당 위치에서의 전단력 계산 (단위: N)
-    V_at_x_left = V_func(x_left)
-    V_at_x_right = V_func(x_right)
+            # 해당 위치에서의 전단력 계산 (단위: N)
+            V_at_x_left = float(V.subs(x, x_left).evalf())
+            V_at_x_right = float(V.subs(x, x_right).evalf())
 
-    # Q(y) 계산 (단위: m^3)
-    Q_at_y = Q(y_val)
+            # 전단 응력 σ_xy 계산 (단위: N/m^2)
+            sigma_xy_left = V_at_x_left * Q_at_y / (I * b)
+            sigma_xy_right = V_at_x_right * Q_at_y / (I * b)
 
-    # 전단 응력 σ_xy 계산 (단위: N/m^2)
-    sigma_xy_left = V_at_x_left * Q_at_y / (I * b)
-    sigma_xy_right = V_at_x_right * Q_at_y / (I * b)
+            # 수직 응력 σ_xx 계산 (단위: N/m^2)
+            sigma_xx_left = float(sigma.subs({x: x_left, y: y_val}).evalf())
+            sigma_xx_right = float(sigma.subs({x: x_right, y: y_val}).evalf())
 
-    # 수직 응력 σ_xx 계산 (단위: N/m^2)
-    sigma_xx_left = sigma.subs({x: x_left, y: y_val})
-    sigma_xx_left = float(sigma_xx_left)
+            # 응력 텐서 구성
+            sigma_xz = 0  # z 방향 전단 응력은 무시 (단위: N/m^2)
+            sigma_yy = 0  # 단위: N/m^2
+            sigma_zz = 0  # 단위: N/m^2
 
-    sigma_xx_right = sigma.subs({x: x_right, y: y_val})
-    sigma_xx_right = float(sigma_xx_right)
+            # 좌측 응력 텐서 구성 (단위: N/m^2)
+            stress_tensor_left = sp.Matrix([
+                [sigma_xx_left, sigma_xy_left, sigma_xz],
+                [sigma_xy_left, sigma_yy, 0],
+                [sigma_xz, 0, sigma_zz]
+            ])
 
-    # 응력 텐서 구성
-    sigma_xz = 0  # z 방향 전단 응력은 무시 (단위: N/m^2)
-    sigma_yy = 0  # 단위: N/m^2
-    sigma_zz = 0  # 단위: N/m^2
+            # 우측 응력 텐서 구성 (단위: N/m^2)
+            stress_tensor_right = sp.Matrix([
+                [sigma_xx_right, sigma_xy_right, sigma_xz],
+                [sigma_xy_right, sigma_yy, 0],
+                [sigma_xz, 0, sigma_zz]
+            ])
 
-    # 좌측 응력 텐서 구성 (단위: N/m^2)
-    stress_tensor_left = sp.Matrix([
-        [sigma_xx_left, sigma_xy_left, sigma_xz],
-        [sigma_xy_left, sigma_yy, 0],
-        [sigma_xz, 0, sigma_zz]
-    ])
+            # 응력 텐서의 크기 계산 (절댓값의 합)
+            norm_left = abs(sigma_xx_left) + abs(sigma_xy_left)
+            norm_right = abs(sigma_xx_right) + abs(sigma_xy_right)
 
-    # 우측 응력 텐서 구성 (단위: N/m^2)
-    stress_tensor_right = sp.Matrix([
-        [sigma_xx_right, sigma_xy_right, sigma_xz],
-        [sigma_xy_right, sigma_yy, 0],
-        [sigma_xz, 0, sigma_zz]
-    ])
+            # 큰 응력 텐서 선택
+            if norm_left >= norm_right:
+                stress_tensor = stress_tensor_left
+                print(f"\n({x_val} m, {y_val} m, {z_val} m) 위치에서의 응력 텐서 (단위: N/m^2):")
+            else:
+                stress_tensor = stress_tensor_right
+                print(f"\n({x_val} m, {y_val} m, {z_val} m) 위치에서의 응력 텐서 (단위: N/m^2):")
 
-    # 응력 텐서의 크기 계산 (절댓값의 합)
-    norm_left = abs(sigma_xx_left) + abs(sigma_xy_left)
-    norm_right = abs(sigma_xx_right) + abs(sigma_xy_right)
+            # 응력 텐서 출력
+            sp.pprint(stress_tensor)
 
-    # 큰 응력 텐서 선택
-    if norm_left >= norm_right:
-        stress_tensor = stress_tensor_left
-        print(f"\n{x_val}, {y_val}, {z_val} 위치에서의 응력 텐서 (좌측 값 사용, 단위: N/m^2):")
-    else:
-        stress_tensor = stress_tensor_right
-        print(f"\n{x_val}, {y_val}, {z_val} 위치에서의 응력 텐서 (우측 값 사용, 단위: N/m^2):")
+        else:
+            # 불연속점이 아닌 경우
+            # 해당 위치에서의 전단력 계산 (단위: N)
+            V_at_x = float(V.subs(x, x_val).evalf())
 
-    # 응력 텐서 출력
-    sp.pprint(stress_tensor)
+            # 수직 응력 σ_xx 계산 (단위: N/m^2)
+            sigma_xx = float(sigma.subs({x: x_val, y: y_val}).evalf())
 
-    # 수치 계산 및 그래프 그리기 (응력 위치 입력 시마다 그래프 갱신)
-    x_vals = np.linspace(0, L, 500)
-    V_vals = V_func(x_vals)
-    M_vals = M_func(x_vals)
+            # 전단 응력 σ_xy 계산 (단위: N/m^2)
+            sigma_xy = V_at_x * Q_at_y / (I * b)
 
-    # 전단력 선도
-    plt.figure(figsize=(10, 4))
-    plt.plot(x_vals, V_vals, label='Shear Force V(x)')
-    plt.title('SFD')
-    plt.xlabel('x (m)')
-    plt.ylabel('Shear Force V(x) (N)')
-    plt.grid(True)
-    plt.legend()
-    plt.show()
+            # 응력 텐서 구성
+            sigma_xz = 0  # z 방향 전단 응력은 무시 (단위: N/m^2)
+            sigma_yy = 0  # 단위: N/m^2
+            sigma_zz = 0  # 단위: N/m^2
 
-    # 모멘트 선도
-    plt.figure(figsize=(10, 4))
-    plt.plot(x_vals, M_vals, label='Moment M(x)')
-    plt.title('BMD')
-    plt.xlabel('x (m)')
-    plt.ylabel('Moment M(x) (Nm)')
-    plt.grid(True)
-    plt.legend()
-    plt.show()
+            stress_tensor = sp.Matrix([
+                [sigma_xx, sigma_xy, sigma_xz],
+                [sigma_xy, sigma_yy, 0],
+                [sigma_xz, 0, sigma_zz]
+            ])
+
+            print(f"\n({x_val} m, {y_val} m, {z_val} m) 위치에서의 응력 텐서 (단위: N/m^2):")
+            sp.pprint(stress_tensor)
+
+    except Exception as e:
+        print(f"오류 발생: {e}")
 
     # 다시 계산 여부 확인
     repeat = input("\n다른 위치에서 계산을 진행하시겠습니까? (y/n): ").strip().lower()
     if repeat != 'y':
         print("계산을 종료합니다.")
         break
+
+# 인터랙티브 모드 비활성화 (필요 시)
+# plt.ioff()
+# plt.show()  # 최종적으로 한 번 더 호출할 필요 없음
