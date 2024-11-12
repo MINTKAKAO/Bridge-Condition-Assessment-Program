@@ -2,17 +2,17 @@ import sympy as sp
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Variable definitions
+# Define variables
 x, y = sp.symbols('x y')
 L = float(input("Enter the length of the beam L (m): "))  # Unit: meters (m)
 b = float(input("Enter the width of the beam section b (m): "))  # Unit: meters (m)
 h = float(input("Enter the height of the beam section h (m): "))  # Unit: meters (m)
 I = b * h**3 / 12  # Second moment of area (unit: m^4)
 
-# Support reaction variables
+# Define reaction forces at supports
 R_A, R_B = sp.symbols('R_A R_B')  # Unit: Newton (N)
 
-# Point moment load input
+# Point moment loads input
 num_point_moments = int(input("Enter the number of point moments: "))
 moment_positions = []  # Position unit: meters (m)
 moment_magnitudes = []  # Magnitude unit: Newton-meter (Nm)
@@ -23,7 +23,7 @@ for i in range(num_point_moments):
     moment_positions.append(pos)
     moment_magnitudes.append(mag)
 
-# Point vertical load input (downward load is positive)
+# Point vertical loads input (downward load is positive)
 num_point_loads = int(input("Enter the number of point vertical loads: "))
 point_positions = []  # Position unit: meters (m)
 point_magnitudes = []  # Magnitude unit: Newton (N)
@@ -55,15 +55,15 @@ for i in range(num_linear_loads):
     end_mag = float(input(f"Enter the end magnitude of linear load {i+1} (N/m): "))
     linear_loads.append((start_pos, end_pos, start_mag, end_mag))
 
-# Shear force function definition (according to Hibbeler's sign convention)
+# Define shear force function (according to Hibbeler's sign convention)
 V = R_A  # Starting with support reaction R_A (unit: Newton, N)
 M = sp.Integer(0)  # Initialize bending moment symbolically at zero (unit: Newton-meter, Nm)
 
-# Shear force due to point loads
+# Calculate shear force due to point loads
 for pos, mag in zip(point_positions, point_magnitudes):
     V += sp.Piecewise((-mag, x >= pos), (0, x < pos))
 
-# Shear force due to uniform distributed loads
+# Calculate shear force due to uniform distributed loads
 for start_pos, end_pos, mag in continuous_loads:
     V += sp.Piecewise(
         (0, x < start_pos),
@@ -71,9 +71,9 @@ for start_pos, end_pos, mag in continuous_loads:
         (-mag * (end_pos - start_pos), x > end_pos)
     )
 
-# Shear force due to linear distributed loads
+# Calculate shear force due to linear distributed loads
 for start_pos, end_pos, start_mag, end_mag in linear_loads:
-    slope = (end_mag - start_mag) / (end_pos - start_pos)  # Slope (N/m^2)
+    slope = (end_mag - start_mag) / (end_pos - start_pos)  # Slope (N/m²)
     a = start_pos
     b_pos = end_pos
     w0 = start_mag
@@ -83,12 +83,13 @@ for start_pos, end_pos, start_mag, end_mag in linear_loads:
         (- (w0 * (b_pos - a) + 0.5 * slope * (b_pos - a)**2), x > b_pos)
     )
 
-# Moment due to point moments
+# Calculate moment due to point moments
 for pos, mag in zip(moment_positions, moment_magnitudes):
     M += sp.Piecewise((-mag, x >= pos), (0, x < pos))
 
-# Integrate shear force to find the moment
-M += sp.integrate(V, x) + sp.Symbol('C1')  # Add integration constant C1 (unit: Nm)
+# Calculate bending moment by integrating the shear force
+C1 = sp.symbols('C1')
+M += sp.integrate(V, x) + C1  # Add integration constant C1 (unit: Nm)
 
 # Use boundary conditions to solve for integration constant and reactions
 boundary_conditions = [M.subs(x, 0) - 0]
@@ -106,129 +107,144 @@ force_eq = sp.Eq(R_A + R_B, total_load)
 moment_eq = sp.Eq(M.subs(x, L), 0)
 
 # Solve equations
-solutions = sp.solve([force_eq] + boundary_conditions + [moment_eq], (R_A, R_B, sp.Symbol('C1')))
+solutions = sp.solve([force_eq] + boundary_conditions + [moment_eq], (R_A, R_B, C1))
 R_A_sol = solutions[R_A]  # Unit: N
 R_B_sol = solutions[R_B]  # Unit: N
-C1_sol = solutions[sp.Symbol('C1')]  # Unit: Nm
+C1_sol = solutions[C1]    # Unit: Nm
 
 # Substitute R_A, R_B, and C1 in V and M
 V = V.subs(R_A, R_A_sol)  # Unit: N
-M = M.subs(R_A, R_A_sol).subs('C1', C1_sol)  # Unit: Nm
+M = M.subs(R_A, R_A_sol).subs(C1, C1_sol)  # Unit: Nm
 
 # Stress distribution function (unit: Pa, N/m^2)
 sigma = -M * y / I
 
-# Output results
-print("\nShear force function V(x) (unit: N):")
-sp.pprint(V)
-print("\nMoment function M(x) (unit: Nm):")
-sp.pprint(M)
-print("\nStress distribution function σ(x, y) (unit: N/m^2):")
-sp.pprint(sigma)
+# Output results (stress function output removed)
 print("\nLeft support reaction R_A (unit: N):", R_A_sol)
 print("Right support reaction R_B (unit: N):", R_B_sol)
 
 # Function to calculate first moment of area Q(y) (unit: m^3)
-def Q(y_val):
-    return b * (h**2 / 4 - y_val**2)
+def Q(y_val, b, h):
+    return (b / 2) * ((h**2 / 4) - y_val**2)
 
-# Convert shear force and moment functions for numerical computation
-V_func = sp.lambdify(x, V, 'numpy')
-M_func = sp.lambdify(x, M, 'numpy')
+# Evaluate shear force and moment numerically
+x_vals = np.linspace(0, L, 500)
+V_vals = np.array([V.subs(x, val).evalf() for val in x_vals], dtype=float)
+M_vals = np.array([M.subs(x, val).evalf() for val in x_vals], dtype=float)
 
-# Start stress calculation loop
+# Plot graphs
+plt.figure(figsize=(10, 4))
+plt.plot(x_vals, V_vals, label='Shear Force V(x)')
+plt.title('Shear Force Diagram (SFD)')
+plt.xlabel('x (m)')
+plt.ylabel('Shear Force V(x) (N)')
+plt.grid(True)
+plt.legend()
+plt.show()  # Show in blocking mode
+
+plt.figure(figsize=(10, 4))
+plt.plot(x_vals, M_vals, label='Moment M(x)', color='orange')
+plt.title('Bending Moment Diagram (BMD)')
+plt.xlabel('x (m)')
+plt.ylabel('Moment M(x) (Nm)')
+plt.grid(True)
+plt.legend()
+plt.show()  # Show in blocking mode
+
+# List of discontinuities
+discontinuities = sorted(
+    set(
+        moment_positions +
+        point_positions +
+        [pos for load in continuous_loads for pos in (load[0], load[1])] +
+        [pos for load in linear_loads for pos in (load[0], load[1])]
+    )
+)
+
+# Function to check if a point is a discontinuity
+def is_discontinuity(x_val, discontinuities, epsilon=1e-6):
+    return any(abs(x_val - pos) < epsilon for pos in discontinuities)
+
+# Stress calculation loop
 while True:
-    # Calculate stress components at a specific location
-    x_val = float(input("\nEnter the x-position to calculate stress (m): "))
-    y_val = float(input("Enter the y-position to calculate stress (m, y=0 at section center): "))
-    z_val = float(input("Enter the z-position to calculate stress (m): "))
+    try:
+        x_val = float(input(f"\nEnter x-position to calculate stress (0 <= x <= {L} m): "))
+        if not (0 <= x_val <= L):
+            print(f"x position must be between 0 and {L}.")
+            continue
+        y_val = float(input(f"Enter y-position to calculate stress (m, y=0 at section center, -{h/2} <= y <= {h/2} m): "))
+        if not (-h/2 <= y_val <= h/2):
+            print(f"y position must be between -{h/2} and {h/2}.")
+            continue
+        z_val = float(input("Enter z-position to calculate stress (m): "))
 
-    # Small epsilon value for handling discontinuities
-    epsilon = 1e-6
+        # Calculate Q(y) (unit: m^3)
+        Q_at_y = Q(y_val, b, h)
 
-    # Calculate left and right x values around the specified position
-    x_left = x_val - epsilon
-    x_right = x_val + epsilon
+        if is_discontinuity(x_val, discontinuities):
+            epsilon = 1e-6
+            x_left = x_val - epsilon
+            x_right = x_val + epsilon
 
-    # Calculate shear force at specified positions (unit: N)
-    V_at_x_left = V_func(x_left)
-    V_at_x_right = V_func(x_right)
+            V_at_x_left = float(V.subs(x, x_left).evalf())
+            V_at_x_right = float(V.subs(x, x_right).evalf())
 
-    # Calculate Q(y) (unit: m^3)
-    Q_at_y = Q(y_val)
+            sigma_xy_left = V_at_x_left * Q_at_y / (I * b)
+            sigma_xy_right = V_at_x_right * Q_at_y / (I * b)
 
-    # Calculate shear stress σ_xy (unit: N/m^2)
-    sigma_xy_left = V_at_x_left * Q_at_y / (I * b)
-    sigma_xy_right = V_at_x_right * Q_at_y / (I * b)
+            sigma_xx_left = float(sigma.subs({x: x_left, y: y_val}).evalf())
+            sigma_xx_right = float(sigma.subs({x: x_right, y: y_val}).evalf())
 
-    # Calculate normal stress σ_xx (unit: N/m^2)
-    sigma_xx_left = sigma.subs({x: x_left, y: y_val})
-    sigma_xx_left = float(sigma_xx_left)
+            sigma_xz = 0  # Shear stress in z-direction is ignored (unit: N/m^2)
+            sigma_yy = 0  # Unit: N/m^2
+            sigma_zz = 0  # Unit: N/m^2
 
-    sigma_xx_right = sigma.subs({x: x_right, y: y_val})
-    sigma_xx_right = float(sigma_xx_right)
+            stress_tensor_left = sp.Matrix([
+                [sigma_xx_left, sigma_xy_left, sigma_xz],
+                [sigma_xy_left, sigma_yy, 0],
+                [sigma_xz, 0, sigma_zz]
+            ])
 
-    # Construct stress tensor
-    sigma_xz = 0  # Shear stress in z-direction (unit: N/m^2)
-    sigma_yy = 0  # Normal stress in y-direction (unit: N/m^2)
-    sigma_zz = 0  # Normal stress in z-direction (unit: N/m^2)
+            stress_tensor_right = sp.Matrix([
+                [sigma_xx_right, sigma_xy_right, sigma_xz],
+                [sigma_xy_right, sigma_yy, 0],
+                [sigma_xz, 0, sigma_zz]
+            ])
 
-    # Left stress tensor (unit: N/m^2)
-    stress_tensor_left = sp.Matrix([
-        [sigma_xx_left, sigma_xy_left, sigma_xz],
-        [sigma_xy_left, sigma_yy, 0],
-        [sigma_xz, 0, sigma_zz]
-    ])
+            norm_left = abs(sigma_xx_left) + abs(sigma_xy_left)
+            norm_right = abs(sigma_xx_right) + abs(sigma_xy_right)
 
-    # Right stress tensor (unit: N/m^2)
-    stress_tensor_right = sp.Matrix([
-        [sigma_xx_right, sigma_xy_right, sigma_xz],
-        [sigma_xy_right, sigma_yy, 0],
-        [sigma_xz, 0, sigma_zz]
-    ])
+            if norm_left >= norm_right:
+                stress_tensor = stress_tensor_left
+                print(f"\nStress tensor at ({x_val} m, {y_val} m, {z_val} m) (unit: N/m^2):")
+            else:
+                stress_tensor = stress_tensor_right
+                print(f"\nStress tensor at ({x_val} m, {y_val} m, {z_val} m) (unit: N/m^2):")
 
-    # Calculate norm (absolute sum of stress components)
-    norm_left = abs(sigma_xx_left) + abs(sigma_xy_left)
-    norm_right = abs(sigma_xx_right) + abs(sigma_xy_right)
+            sp.pprint(stress_tensor)
 
-    # Choose larger stress tensor
-    if norm_left >= norm_right:
-        stress_tensor = stress_tensor_left
-        print(f"\nStress tensor at ({x_val}, {y_val}, {z_val}) (left value used, unit: N/m^2):")
-    else:
-        stress_tensor = stress_tensor_right
-        print(f"\nStress tensor at ({x_val}, {y_val}, {z_val}) (right value used, unit: N/m^2):")
+        else:
+            V_at_x = float(V.subs(x, x_val).evalf())
+            sigma_xx = float(sigma.subs({x: x_val, y: y_val}).evalf())
+            sigma_xy = V_at_x * Q_at_y / (I * b)
 
-    # Print stress tensor
-    sp.pprint(stress_tensor)
+            sigma_xz = 0
+            sigma_yy = 0
+            sigma_zz = 0
 
-    # Update graphs with new input each time coordinates are entered
-    x_vals = np.linspace(0, L, 500)
-    V_vals = V_func(x_vals)
-    M_vals = M_func(x_vals)
+            stress_tensor = sp.Matrix([
+                [sigma_xx, sigma_xy, sigma_xz],
+                [sigma_xy, sigma_yy, 0],
+                [sigma_xz, 0, sigma_zz]
+            ])
 
-    # Shear force diagram
-    plt.figure(figsize=(10, 4))
-    plt.plot(x_vals, V_vals, label='Shear Force V(x)')
-    plt.title('Shear Force Diagram (SFD)')
-    plt.xlabel('x (m)')
-    plt.ylabel('Shear Force V(x) (N)')
-    plt.grid(True)
-    plt.legend()
-    plt.show()
+            print(f"\nStress tensor at ({x_val} m, {y_val} m, {z_val} m) (unit: N/m^2):")
+            sp.pprint(stress_tensor)
 
-    # Moment diagram
-    plt.figure(figsize=(10, 4))
-    plt.plot(x_vals, M_vals, label='Moment M(x)')
-    plt.title('Bending Moment Diagram (BMD)')
-    plt.xlabel('x (m)')
-    plt.ylabel('Moment M(x) (Nm)')
-    plt.grid(True)
-    plt.legend()
-    plt.show()
+    except Exception as e:
+        print(f"Error occurred: {e}")
 
-    # Check if user wants to calculate at another location
-    repeat = input("\nWould you like to calculate stress at another location? (y/n): ").strip().lower()
+    repeat = input("\nWould you like to calculate at another position? (y/n): ").strip().lower()
     if repeat != 'y':
-        print("Ending calculations.")
+        print("Exiting calculations.")
         break
