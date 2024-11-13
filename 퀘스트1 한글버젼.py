@@ -1,8 +1,8 @@
 import sympy as sp
 import numpy as np
+import matplotlib
+matplotlib.use('TkAgg')  # 대화형 백엔드로 설정
 import matplotlib.pyplot as plt
-
-# plt.ion()  # 대화형 모드 비활성화
 
 # 변수 정의
 x, y = sp.symbols('x y')
@@ -228,10 +228,10 @@ while True:  # 반복 루프 시작
             # 큰 응력 텐서 선택
             if norm_left >= norm_right:
                 stress_tensor = stress_tensor_left
-                print(f"\n({x_val} m, {y_val} m, {z_val} m) 위치에서의 응력 텐서 (단위: N/m^2):")
+                print(f"\n불연속 지점 {x_val} m에서의 좌측 응력 텐서 (단위: N/m²):")
             else:
                 stress_tensor = stress_tensor_right
-                print(f"\n({x_val} m, {y_val} m, {z_val} m) 위치에서의 응력 텐서 (단위: N/m^2):")
+                print(f"\n불연속 지점 {x_val} m에서의 우측 응력 텐서 (단위: N/m²):")
 
             # 응력 텐서 출력
             sp.pprint(stress_tensor)
@@ -258,7 +258,7 @@ while True:  # 반복 루프 시작
                 [sigma_xz, 0, sigma_zz]
             ])
 
-            print(f"\n({x_val} m, {y_val} m, {z_val} m) 위치에서의 응력 텐서 (단위: N/m^2):")
+            print(f"\n({x_val} m, {y_val} m, {z_val} m) 위치에서의 응력 텐서 (단위: N/m²):")
             sp.pprint(stress_tensor)
 
     except Exception as e:
