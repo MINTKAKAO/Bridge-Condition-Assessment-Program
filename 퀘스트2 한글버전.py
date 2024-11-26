@@ -245,6 +245,62 @@ plt.grid(True)
 plt.legend()
 plt.show()  # 블로킹 모드로 표시
 
+# === 여기서부터 추가된 코드입니다 ===
+# 크랙 위치에서의 단면 응력 분포도 계산 및 출력
+for crack_x, crack_d in zip(crack_positions, crack_depths):
+    # y 값 범위 설정
+    y_vals = np.linspace(-h/2 + crack_d, h/2, 500)
+    sigma_xx_vals = []
+    sigma_xy_vals = []
+
+    # 해당 위치에서의 전단력과 모멘트 계산
+    V_at_x = float(V.subs(x, crack_x).evalf())
+    M_at_x = float(M.subs(x, crack_x).evalf())
+
+    # 단면 2차 모멘트와 중립축 위치 계산
+    I = I_effective(b, h, crack_d)
+    y_neutral = calculate_neutral_axis(h, crack_d)
+
+    for y_val in y_vals:
+        # y 위치가 크랙 내부인지 확인
+        y_bottom = -h / 2 + crack_d
+        if y_val < y_bottom:
+            sigma_xx_vals.append(0)
+            sigma_xy_vals.append(0)
+            continue
+
+        # 수정된 y 값 계산
+        y_corrected = y_val - y_neutral
+
+        # Q(y) 계산
+        Q_at_y = Q(y_val, b, h, crack_d)
+
+        # 응력 계산
+        sigma_xx = -M_at_x * y_corrected / I
+        sigma_xy = -V_at_x * Q_at_y / (I * b)
+
+        sigma_xx_vals.append(sigma_xx)
+        sigma_xy_vals.append(sigma_xy)
+
+    # σₓₓ vs y 그래프 그리기
+    plt.figure(figsize=(8, 6))
+    plt.plot(sigma_xx_vals, y_vals)
+    plt.title(f'Normal Stress Distribution σₓₓ at x = {crack_x} m')
+    plt.xlabel('σₓₓ (Pa)')
+    plt.ylabel('y (m)')
+    plt.grid(True)
+    plt.show()
+
+    # σₓᵧ vs y 그래프 그리기
+    plt.figure(figsize=(8, 6))
+    plt.plot(sigma_xy_vals, y_vals)
+    plt.title(f'Shear Stress Distribution σₓᵧ at x = {crack_x} m')
+    plt.xlabel('σₓᵧ (Pa)')
+    plt.ylabel('y (m)')
+    plt.grid(True)
+    plt.show()
+# === 추가된 코드 끝 ===
+
 # 응력 계산 루프 시작
 while True:  # 반복 루프 시작
     try:
@@ -347,7 +403,6 @@ while True:  # 반복 루프 시작
                 else:
                     # 부호가 다르면 전단력의 변화를 고려하여 결정
                     sigma_xy = sigma_xy_right if V_at_x_right > V_at_x_left else sigma_xy_left
-
 
             # 응력 텐서 구성
             stress_tensor = sp.Matrix([
