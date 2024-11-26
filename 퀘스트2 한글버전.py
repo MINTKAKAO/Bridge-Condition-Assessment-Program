@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 # 변수 정의
 x, y = sp.symbols('x y')
 L = float(input("보의 길이 L을 입력하세요 (m): "))  # 단위: 미터 (m)
-b = float(input("보의 단면 폭 b를 입력하세요 (m): "))  # 단위: 미터 (m)
-h = float(input("보의 단면 높이 h를 입력하세요 (m): "))  # 단위: 미터 (m)
+b = float(input("보의 단면 폭 b을 입력하세요 (m): "))  # 단위: 미터 (m)
+h = float(input("보의 단면 높이 h을 입력하세요 (m): "))  # 단위: 미터 (m)
 I_original = b * h**3 / 12  # 원래 단면 2차 모멘트 (단위: m^4)
 
 # 지점 반력 변수 정의
@@ -69,8 +69,8 @@ for i in range(num_cracks):
     crack_depths.append(crack_d)
 
 # 전단력 함수 정의 (히블러의 부호 규약에 맞게 설정)
-V = R_A  # 전단력, 반력 R_A로 시작 (단위: 뉴턴, N)
-M = sp.Integer(0)  # 굽힘 모멘트를 심볼릭 0으로 초기화 (단위: 뉴턴미터, Nm)
+V = R_A  # 전단력, 반력 R_A로 시작 (단위: N)
+M = sp.Integer(0)  # 굽힘 모멘트를 심볼릭 0으로 초기화 (단위: Nm)
 
 # 포인트 수직하중에 따른 전단력 계산
 for pos, mag in zip(point_positions, point_magnitudes):
@@ -245,62 +245,6 @@ plt.grid(True)
 plt.legend()
 plt.show()  # 블로킹 모드로 표시
 
-# === 여기서부터 추가된 코드입니다 ===
-# 크랙 위치에서의 단면 응력 분포도 계산 및 출력
-for crack_x, crack_d in zip(crack_positions, crack_depths):
-    # y 값 범위 설정
-    y_vals = np.linspace(-h/2 + crack_d, h/2, 500)
-    sigma_xx_vals = []
-    sigma_xy_vals = []
-
-    # 해당 위치에서의 전단력과 모멘트 계산
-    V_at_x = float(V.subs(x, crack_x).evalf())
-    M_at_x = float(M.subs(x, crack_x).evalf())
-
-    # 단면 2차 모멘트와 중립축 위치 계산
-    I = I_effective(b, h, crack_d)
-    y_neutral = calculate_neutral_axis(h, crack_d)
-
-    for y_val in y_vals:
-        # y 위치가 크랙 내부인지 확인
-        y_bottom = -h / 2 + crack_d
-        if y_val < y_bottom:
-            sigma_xx_vals.append(0)
-            sigma_xy_vals.append(0)
-            continue
-
-        # 수정된 y 값 계산
-        y_corrected = y_val - y_neutral
-
-        # Q(y) 계산
-        Q_at_y = Q(y_val, b, h, crack_d)
-
-        # 응력 계산
-        sigma_xx = -M_at_x * y_corrected / I
-        sigma_xy = -V_at_x * Q_at_y / (I * b)
-
-        sigma_xx_vals.append(sigma_xx)
-        sigma_xy_vals.append(sigma_xy)
-
-    # σₓₓ vs y 그래프 그리기
-    plt.figure(figsize=(8, 6))
-    plt.plot(sigma_xx_vals, y_vals)
-    plt.title(f'Normal Stress Distribution σₓₓ at x = {crack_x} m')
-    plt.xlabel('σₓₓ (Pa)')
-    plt.ylabel('y (m)')
-    plt.grid(True)
-    plt.show()
-
-    # σₓᵧ vs y 그래프 그리기
-    plt.figure(figsize=(8, 6))
-    plt.plot(sigma_xy_vals, y_vals)
-    plt.title(f'Shear Stress Distribution σₓᵧ at x = {crack_x} m')
-    plt.xlabel('σₓᵧ (Pa)')
-    plt.ylabel('y (m)')
-    plt.grid(True)
-    plt.show()
-# === 추가된 코드 끝 ===
-
 # 응력 계산 루프 시작
 while True:  # 반복 루프 시작
     try:
@@ -379,30 +323,23 @@ while True:  # 반복 루프 시작
             sigma_zz = 0  # 단위: N/m^2
 
             # 응력 텐서 계산 부분 수정
-            # 각 응력 성분별로 부호와 절댓값을 모두 고려하여 선택
+            # 각 응력 성분별로 부호과 절댓값을 모두 고려하여 선택
             if abs(sigma_xx_left) > abs(sigma_xx_right):
                 sigma_xx = sigma_xx_left
-            elif abs(sigma_xx_left) < abs(sigma_xx_right):
+            elif abs(sigma_xx_left) <= abs(sigma_xx_right):
                 sigma_xx = sigma_xx_right
             else:
                 # 절댓값이 같을 때 부호가 같은지 확인
                 if sigma_xx_left == sigma_xx_right:
                     sigma_xx = sigma_xx_left  # 부호가 같으면 아무거나 선택
-                else:
-                    # 부호가 다르면 모멘트의 변화를 고려하여 결정
-                    # 예시로 모멘트가 증가하는 방향의 값을 선택
-                    sigma_xx = sigma_xx_right if M_at_x_right > M_at_x_left else sigma_xx_left
 
             if abs(sigma_xy_left) > abs(sigma_xy_right):
                 sigma_xy = sigma_xy_left
-            elif abs(sigma_xy_left) < abs(sigma_xy_right):
+            elif abs(sigma_xy_left) <= abs(sigma_xy_right):
                 sigma_xy = sigma_xy_right
             else:
                 if sigma_xy_left == sigma_xy_right:
                     sigma_xy = sigma_xy_left
-                else:
-                    # 부호가 다르면 전단력의 변화를 고려하여 결정
-                    sigma_xy = sigma_xy_right if V_at_x_right > V_at_x_left else sigma_xy_left
 
             # 응력 텐서 구성
             stress_tensor = sp.Matrix([
@@ -441,6 +378,52 @@ while True:  # 반복 루프 시작
 
             print(f"\n({x_val} m, {y_val} m, {z_val} m) 위치에서의 응력 텐서 (단위: N/m²):")
             sp.pprint(stress_tensor)
+
+        # **추가된 부분: 응력 분포 그래프 그리기**
+        plot_stress = input("\n이 위치의 단면 응력 분포를 그래프로 보고 싶으시면 'p'를 입력하세요 (그 외 입력 시 건너뜁니다): ").strip().lower()
+        if plot_stress == 'p':
+            # 선택된 x 위치에서의 응력 분포 계산
+            selected_x = x_val
+            num_y_points = 100  # y 방향으로 분할할 지점 수
+            y_distribution = np.linspace(-h/2, h/2, num_y_points)
+            sigma_xx_distribution = []
+            sigma_xy_distribution = []
+
+            for y_pt in y_distribution:
+                # 크랙 유무 확인
+                if crack_d is not None and y_pt < (-h/2 + crack_d):
+                    # 크랙 내부이므로 응력 0
+                    sigma_xx_distribution.append(0)
+                    sigma_xy_distribution.append(0)
+                    continue
+
+                # 단면 2차 모멘트 I 및 중립축 계산
+                I_eff = I_effective(b, h, crack_d)
+                y_neutral_axis = calculate_neutral_axis(h, crack_d)
+                y_corr = y_pt - y_neutral_axis
+                Q_y = Q(y_pt, b, h, crack_d)
+
+                # 모멘트 및 전단력 계산
+                M_at_selected_x = float(M.subs(x, selected_x).evalf())
+                V_at_selected_x = float(V.subs(x, selected_x).evalf())
+
+                # 응력 계산
+                sigma_xx_pt = -M_at_selected_x * y_corr / I_eff
+                sigma_xy_pt = -V_at_selected_x * Q_y / (I_eff * b)
+
+                sigma_xx_distribution.append(float(sigma_xx_pt))
+                sigma_xy_distribution.append(float(sigma_xy_pt))
+
+            # 그래프 그리기
+            plt.figure(figsize=(8, 6))
+            plt.plot(sigma_xx_distribution, y_distribution, label=r'$\sigma_{xx}$ (N/m²)')
+            plt.plot(sigma_xy_distribution, y_distribution, label=r'$\sigma_{xy}$ (N/m²)')
+            plt.title(f'Stress Distribution at x = {selected_x} m')
+            plt.xlabel('Stress (N/m²)')
+            plt.ylabel('y Position (m)')
+            plt.legend()
+            plt.grid(True)
+            plt.show()
 
     except Exception as e:
         print(f"오류 발생: {e}")
