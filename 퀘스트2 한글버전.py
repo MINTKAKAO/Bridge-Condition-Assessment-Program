@@ -14,13 +14,15 @@ I_original = b * h**3 / 12  # 원래 단면 2차 모멘트 (단위: m^4)
 # 지점 반력 변수 정의
 R_A, R_B = sp.symbols('R_A R_B')  # 단위: 뉴턴 (N)
 
+epsilon = 1e-6  # 허용 오차 설정
+
 # 포인트 모멘트 하중 입력
 num_point_moments = int(input("포인트 모멘트 하중의 개수를 입력하세요: "))
 moment_positions = []  # 위치 단위: 미터 (m)
 moment_magnitudes = []  # 크기 단위: 뉴턴미터 (Nm)
 
 for i in range(num_point_moments):
-    pos = float(input(f"{i+1}번째 모멘트 하중 위치 x 값을 입력하세요 (m): "))
+    pos = float(input(f"{i+1}번째 모멘트 하중 위치 x 값을 입력하세요 (m, 0 <= x <= {L}): "))
     mag = float(input(f"{i+1}번째 모멘트 하중 크기 값을 입력하세요 (Nm, 시계 반대 방향 양수): "))
     moment_positions.append(pos)
     moment_magnitudes.append(mag)
@@ -31,7 +33,7 @@ point_positions = []  # 위치 단위: 미터 (m)
 point_magnitudes = []  # 크기 단위: 뉴턴 (N)
 
 for i in range(num_point_loads):
-    pos = float(input(f"{i+1}번째 포인트 하중 위치 x 값을 입력하세요 (m): "))
+    pos = float(input(f"{i+1}번째 포인트 하중 위치 x 값을 입력하세요 (m, 0 <= x <= {L}): "))
     mag = float(input(f"{i+1}번째 포인트 하중 크기 값을 입력하세요 (N, 아래 방향 양수): "))
     point_positions.append(pos)
     point_magnitudes.append(mag)
@@ -41,8 +43,8 @@ num_continuous_loads = int(input("균등 분포하중의 개수를 입력하세�
 continuous_loads = []  # 위치 단위: 미터 (m), 하중 크기 단위: 뉴턴/미터 (N/m)
 
 for i in range(num_continuous_loads):
-    start_pos = float(input(f"{i+1}번째 균등 분포하중 시작 위치 x 값을 입력하세요 (m): "))
-    end_pos = float(input(f"{i+1}번째 균등 분포하중 끝 위치 x 값을 입력하세요 (m): "))
+    start_pos = float(input(f"{i+1}번째 균등 분포하중 시작 위치 x 값을 입력하세요 (m, 0 <= x <= {L}): "))
+    end_pos = float(input(f"{i+1}번째 균등 분포하중 끝 위치 x 값을 입력하세요 (m, {start_pos} <= x <= {L}): "))
     magnitude = float(input(f"{i+1}번째 균등 분포하중 크기 값을 입력하세요 (N/m, 아래 방향 양수): "))
     continuous_loads.append((start_pos, end_pos, magnitude))
 
@@ -51,8 +53,8 @@ num_linear_loads = int(input("선형 연속하중의 개수를 입력하세요: 
 linear_loads = []  # 위치 단위: 미터 (m), 시작 및 끝 하중 크기 단위: 뉴턴/미터 (N/m)
 
 for i in range(num_linear_loads):
-    start_pos = float(input(f"{i+1}번째 선형 하중 시작 위치 x 값을 입력하세요 (m): "))
-    end_pos = float(input(f"{i+1}번째 선형 하중 끝 위치 x 값을 입력하세요 (m): "))
+    start_pos = float(input(f"{i+1}번째 선형 하중 시작 위치 x 값을 입력하세요 (m, 0 <= x <= {L}): "))
+    end_pos = float(input(f"{i+1}번째 선형 하중 끝 위치 x 값을 입력하세요 (m, {start_pos} <= x <= {L}): "))
     start_mag = float(input(f"{i+1}번째 선형 하중 시작 크기 값을 입력하세요 (N/m): "))
     end_mag = float(input(f"{i+1}번째 선형 하중 끝 크기 값을 입력하세요 (N/m): "))
     linear_loads.append((start_pos, end_pos, start_mag, end_mag))
@@ -124,16 +126,20 @@ moment_total = sp.Integer(0)
 
 # 포인트 하중에 의한 모멘트
 for pos, mag in zip(point_positions, point_magnitudes):
-    moment_total += mag * (pos - 0)
+    moment_total += mag * pos
 
 # 균등 분포하중에 의한 모멘트
 for start_pos, end_pos, mag in continuous_loads:
-    moment_total += mag * (end_pos - start_pos) * (start_pos + (end_pos - start_pos)/2 - 0)
+    moment_total += mag * (end_pos - start_pos) * (start_pos + (end_pos - start_pos)/2)
 
 # 선형 분포하중에 의한 모멘트
 for start_pos, end_pos, start_mag, end_mag in linear_loads:
     w_avg = (start_mag + end_mag) / 2
-    moment_total += w_avg * (end_pos - start_pos) * (start_pos + (end_pos - start_pos)/2 - 0)
+    moment_total += w_avg * (end_pos - start_pos) * (start_pos + (end_pos - start_pos)/2)
+
+# **모멘트 합계에서 외부 모멘트 빼기**
+for pos, mag in zip(moment_positions, moment_magnitudes):
+    moment_total -= mag  # 외부 모멘트는 반대 부호로 빼줌
 
 # 모멘트 평형 방정식
 moment_eq = sp.Eq(R_B * L - moment_total, 0)
@@ -161,6 +167,9 @@ discontinuities = sorted(
         [pos for load in linear_loads for pos in (load[0], load[1])]
     )
 )
+
+# **불연속 지점 목록에서 보의 시작점(x=0)과 끝점(x=L)을 제외하도록 수정 (허용 오차 적용)**
+discontinuities = [pos for pos in discontinuities if not (abs(pos) < epsilon or abs(pos - L) < epsilon)]
 
 # 불연속점인지 확인하는 함수
 def is_discontinuity(x_val, discontinuities, epsilon=1e-6):
@@ -295,9 +304,8 @@ while True:  # 반복 루프 시작
         # Q(y) 계산 (단위: m^3)
         Q_at_y = Q(y_val, b, h, crack_d)
 
-        if is_discontinuity(x_val, discontinuities):
+        if is_discontinuity(x_val, discontinuities, epsilon):
             # 불연속점인 경우 좌극한과 우극한 계산
-            epsilon = 1e-6
             x_left = x_val - epsilon
             x_right = x_val + epsilon
 
@@ -323,23 +331,16 @@ while True:  # 반복 루프 시작
             sigma_zz = 0  # 단위: N/m^2
 
             # 응력 텐서 계산 부분 수정
-            # 각 응력 성분별로 부호과 절댓값을 모두 고려하여 선택
+            # 각 응력 성분별로 절댓값이 큰 쪽 선택
             if abs(sigma_xx_left) > abs(sigma_xx_right):
                 sigma_xx = sigma_xx_left
-            elif abs(sigma_xx_left) <= abs(sigma_xx_right):
-                sigma_xx = sigma_xx_right
             else:
-                # 절댓값이 같을 때 부호가 같은지 확인
-                if sigma_xx_left == sigma_xx_right:
-                    sigma_xx = sigma_xx_left  # 부호가 같으면 아무거나 선택
+                sigma_xx = sigma_xx_right
 
             if abs(sigma_xy_left) > abs(sigma_xy_right):
                 sigma_xy = sigma_xy_left
-            elif abs(sigma_xy_left) <= abs(sigma_xy_right):
-                sigma_xy = sigma_xy_right
             else:
-                if sigma_xy_left == sigma_xy_right:
-                    sigma_xy = sigma_xy_left
+                sigma_xy = sigma_xy_right
 
             # 응력 텐서 구성
             stress_tensor = sp.Matrix([
@@ -380,7 +381,7 @@ while True:  # 반복 루프 시작
             sp.pprint(stress_tensor)
 
         # **추가된 부분: 응력 분포 그래프 그리기**
-        plot_stress = input("\n이 위치의 단면 응력 분포를 그래프로 보고 싶으시면 'p'를 입력하세요 (그 외 입력 시 건너뜁니다): ").strip().lower()
+        plot_stress = input("\n특정 단면의 응력 분포를 그래프로 보고 싶으시면 'p'를 입력하세요 (그 외 입력 시 건너뜁니다): ").strip().lower()
         if plot_stress == 'p':
             # 선택된 x 위치에서의 응력 분포 계산
             selected_x = x_val
